@@ -223,9 +223,9 @@ std::string ImportInludeFromProtoName(const std::string& proto_name, const std::
 std::string GetHeaderCallMethodFunction(const grpc::protobuf::MethodDescriptor* method) {
     std::stringstream output;
 
-    output << "bool Call" << method->name() << "(\n";
-    output << Tabs(2) << "const " << StubTypeFromService(method->service()) << " stub,\n";
-    output << Tabs(2) << "const " << CppNameFromProtoName(method->input_type()->full_name()) << "& request,\n";
+    output << "grpc::Status Call" << method->name() << "(\n";
+    output << Tabs(2) << "const " << StubTypeFromService(method->service()) << " &stub,\n";
+    output << Tabs(2) << CppNameFromProtoName(method->input_type()->full_name()) << "& request,\n";
     output << Tabs(2) << CppNameFromProtoName(method->output_type()->full_name()) << "* response);\n";
 
     return output.str();
@@ -234,27 +234,21 @@ std::string GetHeaderCallMethodFunction(const grpc::protobuf::MethodDescriptor* 
 std::string GetSourceCallMethodFunction(const grpc::protobuf::MethodDescriptor* method) {
     std::stringstream output;
 
-    output << "bool Call" << method->name() << "(\n";
-    output << Tabs(2) << "const " << StubTypeFromService(method->service()) << " stub,\n";
-    output << Tabs(2) << "const " << CppNameFromProtoName(method->input_type()->full_name()) << "& request,\n";
+    output << "grpc::Status Call" << method->name() << "(\n";
+    output << Tabs(2) << "const " << StubTypeFromService(method->service()) << " &stub,\n";
+    output << Tabs(2) << CppNameFromProtoName(method->input_type()->full_name()) << "& request,\n";
     output << Tabs(2) << CppNameFromProtoName(method->output_type()->full_name()) << "* response) {\n";
 
     output << Tabs(1) << "grpc::ClientContext context;\n";
-    output << Tabs(1) << "bool result;\n";
+    output << Tabs(1) << "grpc::Status result;\n";
+    output << Tabs(1) << "bool done = false;\n";
     output << Tabs(1) << "std::mutex mu;\n";
     output << Tabs(1) << "std::condition_variable cv;\n";
-    output << Tabs(1) << "bool done = false;\n";
     output << Tabs(1) << "stub->async()->" << method->name() << "(\n";
     output << Tabs(2) <<    "&context, &request, response,\n";
     output << Tabs(2) <<    "[&result, &mu, &cv, &done, response](grpc::Status status) {\n";
-    output << Tabs(3) <<        "bool ret;";
-    output << Tabs(3) <<        "if (!status.ok()) {\n";
-    output << Tabs(4) <<            "ret = false;\n";
-    output << Tabs(3) <<        "} else {\n";
-    output << Tabs(4) <<            "ret = true;\n";
-    output << Tabs(3) <<        "}\n";
+    output << Tabs(3) <<        "result = std::move(status);\n";
     output << Tabs(3) <<        "std::lock_guard<std::mutex> lock(mu);\n";
-    output << Tabs(3) <<        "result = ret;\n";
     output << Tabs(3) <<        "done = true;\n";
     output << Tabs(3) <<        "cv.notify_one();\n";
     output << Tabs(2) <<    "});\n";
@@ -330,8 +324,8 @@ std::string GetSourceIncludes(const grpc::protobuf::FileDescriptor* file) {
 
     output << ImportInludeFromProtoName(file->name(), ".grpc-ext.pb.h");
     output << "\n";
-    output << "#include <mutex>\n";
     output << "#include <condition_variable>\n";
+    output << "#include <mutex>\n";
     output << "\n";
 
 
